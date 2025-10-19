@@ -243,8 +243,11 @@ app.get('/api/test', (req, res) => {
 
 // Serve React app for all non-API routes (only in production)
 if (process.env.NODE_ENV === 'production') {
-  app.get('/*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  app.get('*', (req, res) => {
+    // Only serve index.html for non-API routes
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    }
   });
 }
 
