@@ -241,13 +241,16 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// Serve React app for all non-API routes (only in production)
+// Serve React app for root and other routes (only in production)
 if (process.env.NODE_ENV === 'production') {
-  app.get('*', (req, res) => {
-    // Only serve index.html for non-API routes
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-    }
+  // Serve index.html for root
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  });
+  
+  // Serve index.html for /search route (React Router handles client-side routing)
+  app.get('/search', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
 }
 
