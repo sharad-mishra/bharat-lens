@@ -86,49 +86,35 @@ app.post('/api/search-brands', async (req, res) => {
       return res.status(500).json({ error: 'API keys not configured' });
     }
 
-    // Get brand websites from Exa AI
-    let exaBrandWebsites = {};
+    // Function to find brand website using Exa AI
+    async function findBrandWebsite(brandName) {
+      try {
+        const searchResponse = await fetch('https://api.exa.ai/search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': EXA_API_KEY,
+          },
+          body: JSON.stringify({
+            query: `${brandName} official website`,
+            type: 'neural',
+            numResults: 1
+          })
+        });
 
-    try {
-      const exaResponse = await fetch('https://api.exa.ai/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': EXA_API_KEY,
-        },
-        body: JSON.stringify({
-          query: `${query} brands official websites`,
-          type: 'neural',
-          numResults: 6
-        })
-      });
-
-      if (exaResponse.ok) {
-        const exaData = await exaResponse.json();
-        if (exaData.results?.length > 0) {
-          // Extract brand websites from Exa results
-          exaData.results.forEach(result => {
-            if (result.url) {
-              // Extract domain as potential brand website
-              const domain = result.url.match(/https?:\/\/([^\/]+)/)?.[0];
-              if (domain) {
-                // Store by title keywords for matching later
-                const titleWords = result.title.toLowerCase().split(/\s+/);
-                titleWords.forEach(word => {
-                  if (word.length > 3 && !exaBrandWebsites[word]) {
-                    exaBrandWebsites[word] = domain;
-                  }
-                });
-              }
-            }
-          });
-
-          console.log('Exa found', Object.keys(exaBrandWebsites).length, 'brand websites');
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json();
+          if (searchData.results?.[0]?.url) {
+            const url = searchData.results[0].url;
+            // Extract clean domain
+            const domain = url.match(/https?:\/\/[^\/]+/)?.[0];
+            return domain || url;
+          }
         }
+      } catch (error) {
+        console.log(`Exa search failed for ${brandName}:`, error.message);
       }
-    } catch (error) {
-      console.log('Exa API error:', error.message);
-      // Continue without search context
+      return null;
     }
 
     // Simple prompt without thinking mode
@@ -141,14 +127,17 @@ Return only this JSON structure:
   "globalBrands": [{"name": "Brand", "description": "Brief desc", "pros": ["pro1"], "cons": ["con1"]}]
 }`;
 
-    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.3,
-          maxOutputTokens: 2048
+          maxOutputTokens: 3000,
+          thinkingConfig: {
+            thinkingBudget: 0
+          }
         }
       })
     });
@@ -176,36 +165,36 @@ Return only this JSON structure:
       const jsonStr = jsonMatch ? jsonMatch[1] : content;
       results = JSON.parse(jsonStr);
 
-      // Ensure all brands have website URLs using multiple sources
-      const assignWebsite = (brand) => {
-        // Priority 1: AI provided website
+
+
+      // Use Exa AI to find actual websites for each brand
+      const allBrands = [
+        ...(results.indianBrands || []),
+        ...(results.globalBrands || [])
+      ];
+
+      const websitePromises = allBrands.map(async (brand) => {
         if (brand.website && brand.website.startsWith('http')) {
           return brand.website;
         }
+        const exaWebsite = await findBrandWebsite(brand.name);
+        return exaWebsite || getWebsiteForBrand(brand.name);
+      });
 
-        // Priority 2: Exa search results
-        const brandNameLower = brand.name.toLowerCase();
-        for (const [keyword, url] of Object.entries(exaBrandWebsites)) {
-          if (brandNameLower.includes(keyword)) {
-            return url;
-          }
-        }
+      const websites = await Promise.all(websitePromises);
 
-        // Priority 3: Manual mapping fallback
-        return getWebsiteForBrand(brand.name);
-      };
-
+      let index = 0;
       if (results.indianBrands) {
         results.indianBrands = results.indianBrands.map(brand => ({
           ...brand,
-          website: assignWebsite(brand)
+          website: websites[index++]
         }));
       }
 
       if (results.globalBrands) {
         results.globalBrands = results.globalBrands.map(brand => ({
           ...brand,
-          website: assignWebsite(brand)
+          website: websites[index++]
         }));
       }
 
