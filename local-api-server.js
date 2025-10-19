@@ -247,14 +247,14 @@ if (process.env.NODE_ENV === 'production') {
   app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
-  
+
   // Serve index.html for /search route (React Router handles client-side routing)
   app.get('/search', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
 }
 
-app.listen(PORT, '127.0.0.1', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 BharatLens Full-Stack App running on http://localhost:${PORT}`);
   console.log(`📡 API endpoints: http://localhost:${PORT}/api/*`);
   console.log(`🌐 Frontend: http://localhost:${PORT}`);
