@@ -53,8 +53,11 @@ export const useSearchWithRetry = (): UseSearchWithRetryReturn => {
         }
       }
 
-      // Call Express API
-      const response = await fetch('http://localhost:3001/api/search-brands', {
+      // Call Express API (use relative path in production, localhost in dev)
+      const apiUrl = window.location.hostname === 'localhost' 
+        ? 'http://localhost:3001/api/search-brands'
+        : '/api/search-brands';
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
